@@ -7,8 +7,7 @@ from pathlib import Path
 import sys
 import re
 import json
-import pkg_resources
-
+from importlib import metadata
 # Initialize mimetypes
 mimetypes.init()
 
@@ -339,7 +338,7 @@ Examples:
     parser.add_argument(
         "--version", "-v", 
         action="version", 
-        version=f"%(prog)s {pkg_resources.get_distribution('folder-to-llm').version}"
+        version=f"%(prog)s {metadata.version('folder-to-llm')}"
     )
     
     args = parser.parse_args()
