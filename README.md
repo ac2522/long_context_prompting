@@ -129,7 +129,7 @@ my_directory/
 ### OpenAI/Gemini format
 ```
 Project Structure:
-```
+
 my_directory/
 ├── file1.txt
 ├── file2.txt
@@ -137,7 +137,7 @@ my_directory/
 ├── temp.log
 └── subdirectory/
     └── file3.txt
-```
+
 
 my_directory/file1.txt
 ---
