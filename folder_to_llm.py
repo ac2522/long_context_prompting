@@ -108,55 +108,47 @@ def should_exclude_content(path, exclusion_patterns=None):
     # Use a trailing slash to match directories specifically
     return any(pattern.search(str_path + "/") for pattern in exclusion_patterns)
 
-def generate_tree_structure(path, exclusion_patterns=None, prefix="", first_call=True):
+def _tree_lines(path, exclusion_patterns, prefix=""):
+    lines = []
+    try:
+        children = sorted(
+            path.iterdir(),
+            key=lambda p: (not p.is_dir(), p.name.lower())
+        )
+        # Exclude unwanted items:
+        children = [child for child in children if not should_exclude(child, exclusion_patterns)]
+    except PermissionError:
+        return [prefix + "└── [Permission Denied]"]
+
+    for idx, child in enumerate(children):
+        is_last = (idx == len(children) - 1)
+        connector = "└── " if is_last else "├── "
+        if child.is_dir():
+            lines.append(f"{prefix}{connector}{child.name}/")
+            # Only traverse into the directory if its content is not excluded:
+            if not (exclusion_patterns and should_exclude_content(child, exclusion_patterns)):
+                extension = "    " if is_last else "│   "
+                lines.extend(_tree_lines(child, exclusion_patterns, prefix + extension))
+        else:
+            lines.append(f"{prefix}{connector}{child.name}")
+    return lines
+
+def generate_tree_structure(path, exclusion_patterns=None):
     """
     Generate a tree-like visualization of the folder structure.
-    
+
     Args:
-        path: Path to the folder to process
-        exclusion_patterns: List of regex patterns for files/folders to exclude
-        prefix: Prefix to use for the current line (used for recursion)
-        first_call: If this is the first call to the function
-    
+        path (str or Path): The root folder path.
+        exclusion_patterns (list, optional): List of regex patterns for files/folders to exclude.
+
     Returns:
-        String representation of the tree structure
+        str: A string representation of the tree.
     """
     path = Path(path)
-    
-    if first_call:
-        result = f"{path.name}/\n"
-    else:
-        result = f"{prefix}{'└── ' if '└── ' in prefix else '├── '}{path.name}\n"
-    
-    try:
-        # Sort: directories first, then files, both alphabetically
-        items = sorted(path.iterdir(), key=lambda p: (not p.is_dir(), p.name))
-        
-        # Filter out excluded items
-        items = [item for item in items if not should_exclude(item, exclusion_patterns)]
-        
-        # Process each item
-        for i, item in enumerate(items):
-            is_last = (i == len(items) - 1)
-            new_prefix = prefix + ("    " if is_last else "│   ")
-            
-            if item.is_dir():
-                # For excluded directories, show them in structure but don't traverse
-                if should_exclude_content(item, exclusion_patterns):
-                    result += f"{new_prefix}{'└── ' if is_last else '├── '}{item.name}/\n"
-                else:
-                    result += generate_tree_structure(
-                        item, 
-                        exclusion_patterns, 
-                        new_prefix, 
-                        False
-                    )
-            else:
-                result += f"{new_prefix}{'└── ' if is_last else '├── '}{item.name}\n"
-    except PermissionError:
-        result += f"{prefix}{'└── ' if '└── ' in prefix else '├── '}[Permission denied]\n"
-    
-    return result
+    # Start with the root (printed without any connector):
+    lines = [f"{path.name}/"]
+    lines.extend(_tree_lines(path, exclusion_patterns, ""))
+    return "\n".join(lines)
 
 def confirm_processing(folder_path, exclusion_patterns=None, skip_confirm=False):
     """

@@ -1,0 +1,2 @@
+[console_scripts]
+folder-to-llm = folder_to_llm:main

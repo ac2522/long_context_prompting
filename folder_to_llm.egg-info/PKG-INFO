@@ -1,0 +1,14 @@
+Metadata-Version: 2.2
+Name: folder-to-llm
+Version: 0.1.0
+Summary: Convert folder structure to LLM prompt format
+Author: Your Name
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+License-File: LICENSE
+Dynamic: author
+Dynamic: classifier
+Dynamic: requires-python
+Dynamic: summary
