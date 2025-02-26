@@ -7,6 +7,9 @@ A Python utility that converts folder structures and file contents into LLM-frie
 - Recursively scans folder structures
 - Includes file contents for all readable text files
 - Supports multiple output formats (XML, JSON, Markdown)
+- Interactive confirmation step to review files
+- Tree-style visualization of folder structure
+- Support for multiple LLM formats (Claude, OpenAI/ChatGPT, Gemini)
 - Excludes binary/non-readable files from content extraction
 - Allows pattern-based exclusion of files and folders
 - Special handling for directories: can include in structure but exclude contents
@@ -44,12 +47,24 @@ pip install -e .
 Once installed, you can use the tool via the command line:
 
 ```bash
-# Basic usage - outputs XML format to stdout
+# Basic usage - outputs Claude XML format to stdout
 folder-to-llm /path/to/your/folder
 
-# Specify output format (XML, JSON, or Markdown)
+# Specify output format for Claude (XML, JSON, or Markdown)
 folder-to-llm /path/to/your/folder --format json
 folder-to-llm /path/to/your/folder -f markdown
+
+# Target different LLM formats
+folder-to-llm /path/to/your/folder --llm openai
+folder-to-llm /path/to/your/folder -l gemini
+
+# Skip outputting folder structure
+folder-to-llm /path/to/your/folder --skip-structure
+folder-to-llm /path/to/your/folder -s
+
+# Skip the confirmation step
+folder-to-llm /path/to/your/folder --no-confirm
+folder-to-llm /path/to/your/folder -y
 
 # Exclude specific files or folders
 folder-to-llm /path/to/your/folder --exclude "*.log" "temp.txt"
@@ -65,38 +80,88 @@ folder-to-llm /path/to/your/folder -o result.txt
 folder-to-llm --help
 ```
 
-### Example Output
+## Interactive Confirmation
 
-#### XML format
+By default, the tool will show you the folder structure and ask for confirmation before processing:
+
+```
+Project Structure:
+my_directory/
+├── file1.txt
+├── file2.txt
+├── .hidden_file.txt
+├── temp.log
+└── subdirectory/
+    └── file3.txt
+
+Process these files? (y/n, or specify additional exclusions with 'exclude: pattern1 pattern2'):
+```
+
+You can:
+- Enter `y` to proceed
+- Enter `n` to cancel
+- Enter `exclude: pattern1 pattern2` to add more exclusions and update the view
+
+## Example Output Formats
+
+### Claude format (XML)
 ```xml
 <folder_structure>
-      project/
-        src/
-          main.py
-          utils.py
-        venv/
-        README.md
+my_directory/
+├── file1.txt
+├── file2.txt
+├── .hidden_file.txt
+├── temp.log
+└── subdirectory/
+    └── file3.txt
 </folder_structure>
 <documents>
   <document index="1">
-    <source>src/main.py</source>
+    <source>file1.txt</source>
     <document_content>
-      # Main application code here
+      Contents of file1.txt
     </document_content>
   </document>
   <!-- Additional files would be listed here -->
 </documents>
 ```
 
-#### JSON format
+### OpenAI/Gemini format
+```
+Project Structure:
+```
+my_directory/
+├── file1.txt
+├── file2.txt
+├── .hidden_file.txt
+├── temp.log
+└── subdirectory/
+    └── file3.txt
+```
+
+my_directory/file1.txt
+---
+Contents of file1.txt
+---
+my_directory/file2.txt
+---
+Contents of file2.txt
+---
+my_directory/subdirectory/file3.txt
+---
+Contents of file3.txt
+---
+```
+
+### JSON format (Claude only)
 ```json
 {
-  "folder_structure": "project/\n  src/\n    main.py\n    utils.py\n  venv/\n  README.md",
+  "folder_structure": "my_directory/\n├── file1.txt\n├── file2.txt\n...",
   "documents": [
     {
       "index": 1,
-      "source": "src/main.py",
-      "document_content": "# Main application code here"
+      "source": "file1.txt",
+      "document_content": "Contents of file1.txt"
     }
   ]
 }
