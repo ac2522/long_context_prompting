@@ -9,6 +9,7 @@ A Python utility that converts folder structures and file contents into LLM-frie
 - Supports multiple output formats (XML, JSON, Markdown)
 - Excludes binary/non-readable files from content extraction
 - Allows pattern-based exclusion of files and folders
+- Special handling for directories: can include in structure but exclude contents
 - Works on both Linux and Windows
 
 ## Installation
@@ -50,8 +51,11 @@ folder-to-llm /path/to/your/folder
 folder-to-llm /path/to/your/folder --format json
 folder-to-llm /path/to/your/folder -f markdown
 
-# Exclude specific files or folders (supports regex patterns)
-folder-to-llm /path/to/your/folder --exclude "node_modules" ".git" "*.log"
+# Exclude specific files or folders
+folder-to-llm /path/to/your/folder --exclude "*.log" "temp.txt"
+
+# Exclude directory contents but show directories in structure (note the trailing slash)
+folder-to-llm /path/to/your/folder --exclude "node_modules/" ".git/" "venv/"
 
 # Save output to a file
 folder-to-llm /path/to/your/folder --output result.txt
@@ -65,18 +69,16 @@ folder-to-llm --help
 
 #### XML format
 ```xml
-<documents>
-  <document index="1">
-    <source>folder_structure</source>
-    <document_content>
+<folder_structure>
       project/
         src/
           main.py
           utils.py
+        venv/
         README.md
-    </document_content>
-  </document>
-  <document index="2">
+</folder_structure>
+<documents>
+  <document index="1">
     <source>src/main.py</source>
     <document_content>
       # Main application code here
@@ -89,20 +91,21 @@ folder-to-llm --help
 #### JSON format
 ```json
 {
+  "folder_structure": "project/\n  src/\n    main.py\n    utils.py\n  venv/\n  README.md",
   "documents": [
     {
       "index": 1,
-      "source": "folder_structure",
-      "document_content": "project/\n  src/\n    main.py\n    utils.py\n  README.md"
-    },
-    {
-      "index": 2,
       "source": "src/main.py",
       "document_content": "# Main application code here"
     }
   ]
 }
 ```
+
+## Directory Exclusion Behavior
+
+- To completely exclude a file or directory: `--exclude "temp.txt" "junk"` 
+- To show directory in structure but exclude contents: `--exclude "node_modules/" "venv/"` (note the trailing slash)
 
 ## Troubleshooting
 
