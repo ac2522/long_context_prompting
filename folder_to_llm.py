@@ -84,18 +84,9 @@ def format_xml(folder_path, exclusion_patterns=None):
         XML string representation
     """
     folder_path = Path(folder_path).resolve()
-    result = "<documents>\n"
-    document_index = 1
-    
-    # First document: folder structure
-    result += f"  <document index=\"{document_index}\">\n"
-    result += f"    <source>folder_structure</source>\n"
-    result += f"    <document_content>\n"
+    result = "<folder_structure>\n"
     
     def build_folder_structure(path, indent=0):
-        if should_exclude(path):
-            return ""
-            
         structure = " " * 6 + " " * indent + f"{path.name}/\n"
         
         try:
@@ -103,35 +94,41 @@ def format_xml(folder_path, exclusion_patterns=None):
             items = sorted(path.iterdir(), key=lambda p: (not p.is_dir(), p.name))
             
             for item in items:
-                if should_exclude(item):
-                    continue
-                    
                 if item.is_dir():
-                    structure += build_folder_structure(item, indent + 2)
+                    # For excluded directories, show them in structure but don't traverse
+                    if should_exclude_content(item, exclusion_patterns):
+                        structure += " " * 6 + " " * (indent + 2) + f"{item.name}/\n"
+                    else:
+                        structure += build_folder_structure(item, indent + 2)
                 else:
-                    structure += " " * 6 + " " * (indent + 2) + f"{item.name}\n"
+                    if not should_exclude(item, exclusion_patterns):
+                        structure += " " * 6 + " " * (indent + 2) + f"{item.name}\n"
         except PermissionError:
             structure += " " * 6 + " " * (indent + 2) + "[Permission denied]\n"
         
         return structure
     
     result += build_folder_structure(folder_path)
-    result += "    </document_content>\n"
-    result += "  </document>\n"
+    result += "</folder_structure>\n"
+    
+    # Now add the documents section
+    result += "<documents>\n"
+    document_index = 1
     
     # Add file contents for each text file
     for root, dirs, files in os.walk(folder_path):
-        # Process directories in-place to respect excludes
-        dirs[:] = [d for d in dirs if not should_exclude(Path(root) / d)]
+        root_path = Path(root)
+        
+        # Skip processing contents of excluded directories
+        dirs[:] = [d for d in dirs if not should_exclude_content(root_path / d, exclusion_patterns)]
         
         for file in sorted(files):
-            file_path = Path(root) / file
+            file_path = root_path / file
             
-            if should_exclude(file_path):
+            if should_exclude(file_path, exclusion_patterns):
                 continue
                 
             if is_text_file(file_path):
-                document_index += 1
                 rel_path = file_path.relative_to(folder_path)
                 
                 result += f"  <document index=\"{document_index}\">\n"
@@ -146,6 +143,7 @@ def format_xml(folder_path, exclusion_patterns=None):
                 
                 result += "    </document_content>\n"
                 result += "  </document>\n"
+                document_index += 1
     
     result += "</documents>"
     return result
@@ -165,22 +163,14 @@ def format_json(folder_path, exclusion_patterns=None):
     
     # Structure to hold the result
     result = {
-        "documents": [
-            {
-                "index": 1,
-                "source": "folder_structure",
-                "document_content": ""
-            }
-        ]
+        "folder_structure": "",
+        "documents": []
     }
     
     # Build folder structure as a string
     folder_structure = []
     
     def build_folder_structure(path, indent=0):
-        if should_exclude(path):
-            return
-            
         folder_structure.append(" " * indent + f"{path.name}/")
         
         try:
@@ -188,34 +178,37 @@ def format_json(folder_path, exclusion_patterns=None):
             items = sorted(path.iterdir(), key=lambda p: (not p.is_dir(), p.name))
             
             for item in items:
-                if should_exclude(item):
-                    continue
-                    
                 if item.is_dir():
-                    build_folder_structure(item, indent + 2)
+                    # For excluded directories, show them in structure but don't traverse
+                    if should_exclude_content(item, exclusion_patterns):
+                        folder_structure.append(" " * (indent + 2) + f"{item.name}/")
+                    else:
+                        build_folder_structure(item, indent + 2)
                 else:
-                    folder_structure.append(" " * (indent + 2) + f"{item.name}")
+                    if not should_exclude(item, exclusion_patterns):
+                        folder_structure.append(" " * (indent + 2) + f"{item.name}")
         except PermissionError:
             folder_structure.append(" " * (indent + 2) + "[Permission denied]")
     
     build_folder_structure(folder_path)
-    result["documents"][0]["document_content"] = "\n".join(folder_structure)
+    result["folder_structure"] = "\n".join(folder_structure)
     
     # Add file contents
     doc_index = 1
     
     for root, dirs, files in os.walk(folder_path):
-        # Process directories in-place to respect excludes
-        dirs[:] = [d for d in dirs if not should_exclude(Path(root) / d)]
+        root_path = Path(root)
+        
+        # Skip processing contents of excluded directories
+        dirs[:] = [d for d in dirs if not should_exclude_content(root_path / d, exclusion_patterns)]
         
         for file in sorted(files):
-            file_path = Path(root) / file
+            file_path = root_path / file
             
-            if should_exclude(file_path):
+            if should_exclude(file_path, exclusion_patterns):
                 continue
                 
             if is_text_file(file_path):
-                doc_index += 1
                 rel_path = str(file_path.relative_to(folder_path))
                 
                 result["documents"].append({
@@ -223,6 +216,7 @@ def format_json(folder_path, exclusion_patterns=None):
                     "source": rel_path,
                     "document_content": read_file_content(file_path)
                 })
+                doc_index += 1
     
     return json.dumps(result, indent=2)
 
@@ -241,9 +235,6 @@ def format_markdown(folder_path, exclusion_patterns=None):
     result = "# Folder Structure\n\n"
     
     def build_folder_structure(path, indent=0):
-        if should_exclude(path):
-            return ""
-            
         structure = " " * indent + "- **" + path.name + "/**\n"
         
         try:
@@ -251,13 +242,15 @@ def format_markdown(folder_path, exclusion_patterns=None):
             items = sorted(path.iterdir(), key=lambda p: (not p.is_dir(), p.name))
             
             for item in items:
-                if should_exclude(item):
-                    continue
-                    
                 if item.is_dir():
-                    structure += build_folder_structure(item, indent + 2)
+                    # For excluded directories, show them in structure but don't traverse
+                    if should_exclude_content(item, exclusion_patterns):
+                        structure += " " * (indent + 2) + "- **" + item.name + "/**\n"
+                    else:
+                        structure += build_folder_structure(item, indent + 2)
                 else:
-                    structure += " " * (indent + 2) + "- " + item.name + "\n"
+                    if not should_exclude(item, exclusion_patterns):
+                        structure += " " * (indent + 2) + "- " + item.name + "\n"
         except PermissionError:
             structure += " " * (indent + 2) + "- [Permission denied]\n"
         
@@ -268,13 +261,15 @@ def format_markdown(folder_path, exclusion_patterns=None):
     
     # Add file contents
     for root, dirs, files in os.walk(folder_path):
-        # Process directories in-place to respect excludes
-        dirs[:] = [d for d in dirs if not should_exclude(Path(root) / d)]
+        root_path = Path(root)
+        
+        # Skip processing contents of excluded directories
+        dirs[:] = [d for d in dirs if not should_exclude_content(root_path / d, exclusion_patterns)]
         
         for file in sorted(files):
-            file_path = Path(root) / file
+            file_path = root_path / file
             
-            if should_exclude(file_path):
+            if should_exclude(file_path, exclusion_patterns):
                 continue
                 
             if is_text_file(file_path):
@@ -306,6 +301,24 @@ def should_exclude(path, exclusion_patterns=None):
     str_path = str(path)
     return any(pattern.search(str_path) for pattern in exclusion_patterns)
 
+def should_exclude_content(path, exclusion_patterns=None):
+    """
+    Check if a directory's content should be excluded but the directory itself shown.
+    
+    Args:
+        path: Path to check
+        exclusion_patterns: List of compiled regex patterns
+    
+    Returns:
+        True if the directory's content should be excluded, False otherwise
+    """
+    if exclusion_patterns is None or not path.is_dir():
+        return False
+        
+    str_path = str(path)
+    # Use a trailing slash to match directories specifically
+    return any(pattern.search(str_path + "/") for pattern in exclusion_patterns)
+
 def main():
     parser = argparse.ArgumentParser(
         description="Convert folder structure to LLM prompt format",
@@ -314,7 +327,7 @@ def main():
 Examples:
   folder-to-llm /path/to/folder                    # Basic usage with XML output
   folder-to-llm /path/to/folder -f markdown        # Output in Markdown format
-  folder-to-llm /path/to/folder -e "node_modules" ".git"  # Exclude directories
+  folder-to-llm /path/to/folder -e "node_modules/" ".git/"  # Show directories but exclude contents
   folder-to-llm /path/to/folder -o output.txt      # Save to file
         """
     )
@@ -323,7 +336,7 @@ Examples:
     parser.add_argument(
         "--exclude", "-e", 
         nargs="+", 
-        help="Patterns to exclude (file/folder names or regexes)"
+        help="Patterns to exclude (add '/' suffix for directory exclusion with structure preservation)"
     )
     parser.add_argument(
         "--format", "-f", 
